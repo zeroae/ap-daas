@@ -1,0 +1,39 @@
+version: '2'
+
+# Service definition for Consul cluster with a minimum of 3 nodes.
+# For local development we use Compose v2 so that we have an automatically
+# created user-defined network and internal DNS for the name "consul".
+# Nodes will use Docker DNS for the service (passed in via the CONSUL
+# env var) to find each other and bootstrap the cluster.
+services:
+  kldap:
+    build: .
+    restart: always
+    mem_limit: 128m
+    ports:
+      - 88
+      - 389
+      - 464
+      - 749
+    dns:
+      - 127.0.0.1
+    domainname: node.nomr.io
+    environment:
+      - CONSUL=consul
+      - CONSUL_DOMAIN=nomr.io
+      - KRB5_ADMIN_PASSWORD=admin_key
+      - LDAP_ORGANIZATION=NoMR
+
+  consul:
+    image: zeroae/ap-consul
+    restart: always
+    mem_limit: 128m
+    ports:
+      - 8500
+    dns:
+      - 127.0.0.1
+    domainname: node.nomr.io
+    environment:
+      - CONSUL=consul
+      - CONSUL_DOMAIN=nomr.io
+      - CONSUL_BOOTSTRAP_EXPECT=1

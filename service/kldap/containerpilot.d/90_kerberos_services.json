@@ -1,0 +1,53 @@
+{
+  "services": [
+    {
+      "name": "kerberos",
+      "port": 88,
+      "tags": [ "tcp", "udp" ],
+      "health": ["kerberos-manage", "kdcHealth"],
+      "poll": 10,
+      "ttl": 25
+    },
+    {
+      "name": "kerberos-master",
+      "port": 88,
+      "tags": [ "tcp", "udp" ],
+      "health": ["kerberos-manage", "kdcMasterHealth"],
+      "poll": 10,
+      "ttl": 25
+    },
+    {
+      "name": "kerberos-adm",
+      "port": 749,
+      "tags": [ "tcp" ],
+      "health": ["kerberos-manage", "kadminHealth"],
+      "poll": 10,
+      "ttl": 25
+    },
+    {
+      "name": "kpasswd",
+      "port": 464,
+      "tags": [ "udp" ],
+      "health": ["kerberos-manage", "kpasswdHealth"],
+      "poll": 10,
+      "ttl": 25
+    }
+  ],
+  "coprocesses": [
+    {
+      "name": "kdc",
+      "command": [
+        "krb5kdc", "-n"
+      ],
+      "restarts": "unlimited"
+    },
+    {
+      "name": "kadmin",
+      "command": [
+        "kadmind", "-nofork"
+      ],
+      "restarts": "unlimited"
+    }
+  ]
+
+}

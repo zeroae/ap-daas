@@ -1,0 +1,21 @@
+{
+  "services": [
+    {
+      "name": "ldap",
+      "port": 389,
+      "health": ["ldap-manage", "health"],
+      "poll": 10,
+      "ttl": 25
+    }
+  ],
+  "coprocesses": [
+    {
+      "name": "slapd",
+      "command": [
+        "/sbin/slapd.sh",
+        "-d", "0"
+      ],
+      "restarts": "unlimited"
+    }
+  ]
+}

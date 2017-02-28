@@ -1,0 +1,49 @@
+# 2.1.1
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+delete: olcAccess
+olcAccess: {2}to *
+  by * read
+-
+# 2.1.2
+delete: olcAccess
+olcAccess: {1}to dn.base=""
+  by * read
+-
+# 2.1.3.
+delete: olcAccess
+olcAccess: {0}to attrs=userPassword,shadowLastChange
+  by self write
+  by anonymous auth
+  by * none
+-
+# 2.2.1.
+add: olcAccess
+olcAccess: to attrs=userPassword,shadowLastChange
+  by anonymous auth
+  by * none
+-
+# 2.2.2.
+add: olcAccess
+olcAccess: to dn.subtree="cn=krb5,dc=nomr,dc=io"
+  by dn="cn=adm-srv,cn=krb5,dc=nomr,dc=io" write
+  by dn="cn=kdc-srv,cn=krb5,dc=nomr,dc=io" read
+  by * none
+-
+# 2.2.3.
+add: olcAccess
+olcAccess: to attrs=loginShell
+  by self write
+  by users read
+  by * none
+-
+# 2.2.4.
+add: olcAccess
+olcAccess: to dn.base=""
+  by * read
+-
+# 2.2.5.
+add: olcAccess
+olcAccess: to *
+  by users read
+  by * none
