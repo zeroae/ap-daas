@@ -6,6 +6,7 @@ VERSION = 0.1.0
 all: build
 
 build:
+	docker-compose -f local-compose.yml build
 	docker build -t $(NAME) --rm .
 
 build-nocache:

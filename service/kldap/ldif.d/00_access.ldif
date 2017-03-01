@@ -25,9 +25,9 @@ olcAccess: to attrs=userPassword,shadowLastChange
 -
 # 2.2.2.
 add: olcAccess
-olcAccess: to dn.subtree="cn=krb5,dc=nomr,dc=io"
-  by dn="cn=adm-srv,cn=krb5,dc=nomr,dc=io" write
-  by dn="cn=kdc-srv,cn=krb5,dc=nomr,dc=io" read
+olcAccess: to dn.subtree="cn=krb5,${LDAP_BASE_DN}"
+  by dn="cn=adm-srv,cn=krb5,${LDAP_BASE_DN}" write
+  by dn="cn=kdc-srv,cn=krb5,${LDAP_BASE_DN}" read
   by * none
 -
 # 2.2.3.

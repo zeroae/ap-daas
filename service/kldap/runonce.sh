@@ -50,30 +50,20 @@ function slapd_stop() {
     log-helper info "OpenLDAP Stopped"
 }
 
-function slapd_remove_admin() {
-    slapd_get_base_dn
-    log-helper info "Removing LDAP Admin account..."
-    ldapdelete -x -D cn=admin,$LDAP_BASE_DN -w $LDAP_ADMIN_PASSWORD -H ldapi:/// \
-        cn=admin,$LDAP_BASE_DN
-    log-helper info "LDAP Admin account removed."
+function slapd_add_schemas(){
+    ldapadd -QY EXTERNAL -H ldapi:/// -f /etc/ldap/schema/kerberos.ldif
 }
 
-function slapd_add_ldifs() {
-    slapd_get_base_dn
-    log-helper info "Adding People and Groups"
-    cat <<EOF | ldapadd -x -D cn=admin,$LDAP_BASE_DN -w $LDAP_ADMIN_PASSWORD -H ldapi:///
-dn: ou=people,$LDAP_BASE_DN
-objectClass: organizationalUnit
-ou: people
-
-dn: ou=groups,$LDAP_BASE_DN
-objectClass: organizationalUnit
-ou: groups
-EOF
-}
-
-function slapd_load_ldifs() {
-    find $DIR/ldif.d -type f -exec ldapmodify -QY EXTERNAL -H ldapi:/// -f {} \;
+function slapd_apply_ldifs() {
+    BASE_DIR=$1
+    for f in $(find $BASE_DIR -mindepth 1 -maxdepth 1 -type f -name \*.ldif | sort); do
+        log-helper info "Processing file ${f}"
+        cat $f | envsubst > /tmp/$(basename $f)
+        cat $f | envsubst \
+            | ldapmodify -QY EXTERNAL -H ldapi:/// 2>&1 | log-helper debug \
+            || cat $f | envsubst \
+                | ldapmodify -D cn=admin,$LDAP_BASE_DN -w $LDAP_ADMIN_PASSWORD -H ldapi:/// 2>&1 | log-helper debug
+    done
 }
 
 function slapd_configure() {
@@ -87,6 +77,7 @@ function slapd_configure() {
     chown -R openldap:openldap /var/lib/ldap
 
     slapd_get_domain
+    slapd_get_base_dn
 
     if [ -z "$(ls -A -I lost+found /var/lib/ldap)" ] \
         && [ ! -z "$(ls -A -I lost+found /etc/ldap/slapd.d)" ]; then
@@ -135,26 +126,7 @@ URI     ldap://ldap.service.$CONSUL_DOMAIN
 SASL_MECH   GSSAPI
 EOF
 
-    cat <<EOF | ldapmodify -QY EXTERNAL -H ldapi:///
-dn: cn=config
-changetype: modify
-add: olcAuthzRegexp
-olcAuthzRegexp: uid=([^,]+),cn=${KRB5_REALM,,},cn=gssapi,cn=auth
-  uid=\$1,ou=people,$LDAP_BASE_DN
--
-# 1.2.
-add: olcSaslRealm
-olcSaslRealm: $KRB5_REALM
-
-# 2.1.
-dn: olcDatabase={1}mdb,cn=config
-changetype: modify
-replace: olcRootDN
-olcRootDN: uid=admin,ou=people,$LDAP_BASE_DN
--
-# 2.2.
-delete: olcRootPW
-EOF
+    slapd_apply_ldifs $DIR/ldif.d/kerberized
 }
 
 
@@ -189,13 +161,8 @@ function krb5_get_master_password(){
     fi
 }
 
-function krb5_add_schema(){
-    ldapadd -QY EXTERNAL -H ldapi:/// -f /etc/ldap/schema/kerberos.ldif
-}
-
 function krb5_create_realm(){
     log-helper info 'Adding Realm Subtree'
-    slapd_get_base_dn
 
     kdb5_ldap_util="kdb5_ldap_util -D cn=admin,$LDAP_BASE_DN -w $LDAP_ADMIN_PASSWORD -H ldapi:///"
     log-helper info 'Creating Realm Database'
@@ -242,8 +209,8 @@ function krb5_configure(){
     echo "*/admin@$KRB5_REALM *" > /etc/krb5kdc/kadm5.acl
     echo "admin@$KRB5_REALM *" >> /etc/krb5kdc/kadm5.acl
 
-    cp $DIR/assets/krb5.conf /etc
-    cp $DIR/assets/kdc.conf /etc/krb5kdc
+    cat $DIR/assets/krb5.conf | envsubst > /etc/krb5.conf
+    cat $DIR/assets/kdc.conf | envsubst > /etc/krb5kdc/kdc.conf
 
     log-helper info 'Kerberos 5 configuration finished'
 }
@@ -252,10 +219,8 @@ function kldap_populate(){
     log-helper info "Populating LDAP backend..."
     slapd_start
 
-    krb5_add_schema
-    slapd_load_ldifs
-    slapd_add_ldifs
-    slapd_remove_admin
+    slapd_add_schemas
+    slapd_apply_ldifs $DIR/ldif.d
 
     krb5_create_realm
     krb5_create_admin

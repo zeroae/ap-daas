@@ -1,0 +1,10 @@
+# 1.1.
+dn: cn=config
+changetype: modify
+add: olcAuthzRegexp
+olcAuthzRegexp: uid=([^,]+),cn=${KRB5_REALM},cn=gssapi,cn=auth
+  uid=$1,ou=people,${LDAP_BASE_DN}
+-
+# 1.2.
+add: olcSaslRealm
+olcSaslRealm: ${KRB5_REALM}

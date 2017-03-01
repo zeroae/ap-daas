@@ -1,0 +1,8 @@
+# 2.1.
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcRootDN
+olcRootDN: uid=admin,ou=People,${LDAP_BASE_DN}
+-
+# 2.2.
+delete: olcRootPW

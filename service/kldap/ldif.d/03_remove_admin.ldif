@@ -1,0 +1,3 @@
+# Remove admin
+dn: cn=admin,${LDAP_BASE_DN}
+changetype: delete

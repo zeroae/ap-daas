@@ -16,6 +16,7 @@ RUN apt-get -y update \
         slapd ldap-utils \
         krb5-admin-server krb5-kdc-ldap \
         libsasl2-modules-gssapi-mit \
+        gettext-base \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
