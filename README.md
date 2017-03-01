@@ -2,7 +2,7 @@
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/zeroae/ap-daas.svg)][hub]
 [![Docker Stars](https://img.shields.io/docker/stars/zeroae/ap-daas.svg)][hub]
-[![](https://images.microbadger.com/badges/image/zeroae/ap-daas.svg)](http://microbadger.com/images/zeroae/ap-kldap"Get your own image badge on microbadger.com")
+[![](https://images.microbadger.com/badges/image/zeroae/ap-daas.svg)](http://microbadger.com/images/zeroae/ap-daas"Get your own image badge on microbadger.com")
 
 [hub]: https://hub.docker.com/r/zeroae/ap-daas/
 
