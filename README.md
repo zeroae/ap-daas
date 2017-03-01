@@ -1,10 +1,10 @@
-# zeroae/ap-kldap
+# zeroae/ap-daas
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/zeroae/ap-kldap.svg)][hub]
-[![Docker Stars](https://img.shields.io/docker/stars/zeroae/ap-kldap.svg)][hub]
-[![](https://images.microbadger.com/badges/image/zeroae/ap-kldap.svg)](http://microbadger.com/images/zeroae/ap-kldap"Get your own image badge on microbadger.com")
+[![Docker Pulls](https://img.shields.io/docker/pulls/zeroae/ap-daas.svg)][hub]
+[![Docker Stars](https://img.shields.io/docker/stars/zeroae/ap-daas.svg)][hub]
+[![](https://images.microbadger.com/badges/image/zeroae/ap-daas.svg)](http://microbadger.com/images/zeroae/ap-kldap"Get your own image badge on microbadger.com")
 
-[hub]: https://hub.docker.com/r/zeroae/ap-kldap/
+[hub]: https://hub.docker.com/r/zeroae/ap-daas/
 
 Kerberos-OpenLDAP in autopilot.
 

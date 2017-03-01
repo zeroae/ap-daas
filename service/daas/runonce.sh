@@ -4,35 +4,27 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 log-helper level eq trace && set -x
 
-function slapd_get_admin_password() {
+slapd_get_admin_password() {
     if [ -z "$LDAP_ADMIN_PASSWORD" ]; then
         log-helper info "Generating LDAP Admin Password..."
-        LDAP_ADMIN_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
+        export LDAP_ADMIN_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
         log-helper info "Generated LDAP Admin Password: $LDAP_ADMIN_PASSWORD"
     fi
 }
 
-function slapd_get_domain() {
-    if [ -z "$LDAP_DOMAIN" ]; then
-        LDAP_DOMAIN=$CONSUL_DOMAIN
-        log-helper info "Setting LDAP_DOMAIN=$LDAP_DOMAIN"
-    fi
-}
-
-function slapd_get_base_dn() {
-    slapd_get_domain
+slapd_get_base_dn() {
     if [ -z "$LDAP_BASE_DN" ]; then
-        IFS='.' read -ra LDAP_BASE_DN_TABLE <<< "$LDAP_DOMAIN"
+        IFS='.' read -ra LDAP_BASE_DN_TABLE <<< "$CONSUL_DOMAIN"
         for i in "${LDAP_BASE_DN_TABLE[@]}"; do
             EXT="dc=$i,"
             LDAP_BASE_DN=$LDAP_BASE_DN$EXT
         done
-        LDAP_BASE_DN=${LDAP_BASE_DN::${#LDAP_BASE_DN}-1}
+        export LDAP_BASE_DN=${LDAP_BASE_DN::${#LDAP_BASE_DN}-1}
         log-helper info "Setting LDAP_BASE_DN=$LDAP_BASE_DN"
     fi
 }
 
-function slapd_start() {
+slapd_start() {
     log-helper info "Start OpenLDAP..."
     slapd.sh -h "ldapi:///" -u openldap -g openldap
 
@@ -41,7 +33,7 @@ function slapd_start() {
     log-helper info "OpenLDAP Started."
 }
 
-function slapd_stop() {
+slapd_stop() {
     log-helper info "Stop OpenLDAP..."
     SLAPD_PID=$(cat /run/slapd/slapd.pid)
     kill -15 $SLAPD_PID
@@ -50,11 +42,11 @@ function slapd_stop() {
     log-helper info "OpenLDAP Stopped"
 }
 
-function slapd_add_schemas(){
+slapd_add_schemas(){
     ldapadd -QY EXTERNAL -H ldapi:/// -f /etc/ldap/schema/kerberos.ldif
 }
 
-function slapd_apply_ldifs() {
+slapd_apply_ldifs() {
     BASE_DIR=$1
     for f in $(find $BASE_DIR -mindepth 1 -maxdepth 1 -type f -name \*.ldif | sort); do
         log-helper info "Processing file ${f}"
@@ -66,17 +58,15 @@ function slapd_apply_ldifs() {
     done
 }
 
-function slapd_configure() {
+slapd_configure() {
     log-helper info "Configuring OpenLDAP..."
 
     [ -d /var/lib/ldap ] || mkdir -p /var/lib/ldap
     [ -d /etc/ldap/slapd.d ] || mkdir -p /etc/ldap/slapd.d
 
-    chown -R openldap:openldap /var/lib/ldap
     chown -R openldap:openldap /etc/ldap
     chown -R openldap:openldap /var/lib/ldap
 
-    slapd_get_domain
     slapd_get_base_dn
 
     if [ -z "$(ls -A -I lost+found /var/lib/ldap)" ] \
@@ -99,7 +89,7 @@ slapd slapd/internal/adminpw password ${LDAP_ADMIN_PASSWORD}
 slapd slapd/password2 password ${LDAP_ADMIN_PASSWORD}
 slapd slapd/password1 password ${LDAP_ADMIN_PASSWORD}
 slapd slapd/dump_database_destdir string /var/backups/slapd-VERSION
-slapd slapd/domain string ${LDAP_DOMAIN}
+slapd slapd/domain string ${CONSUL_DOMAIN}
 slapd shared/organization string ${LDAP_ORGANIZATION}
 slapd slapd/backend string MDB
 slapd slapd/purge_database boolean true
@@ -113,7 +103,7 @@ EOF
     log-helper info 'OpenLDAP configuration finished'
 }
 
-function slapd_kerberize(){
+slapd_kerberize(){
     log-helper info 'Kerberizing OpenLDAP'
 
     kadmin.local -q "addprinc -randkey ldap/$(hostname)"
@@ -122,7 +112,7 @@ function slapd_kerberize(){
 
     cat <<EOF > /etc/ldap/ldap.conf
 BASE    $LDAP_BASE_DN
-URI     ldap://ldap.service.$CONSUL_DOMAIN
+URI     ldapi:///
 SASL_MECH   GSSAPI
 EOF
 
@@ -130,30 +120,29 @@ EOF
 }
 
 
-function krb5_get_realm(){
+krb5_get_realm(){
     if [ -z "$KRB5_REALM" ]; then
-        slapd_get_domain
-        KRB5_REALM=${LDAP_DOMAIN^^}
+        export KRB5_REALM=${CONSUL_DOMAIN^^}
     fi
 }
 
-function krb5_get_admsrv_password(){
+krb5_get_admsrv_password(){
     if [ -z "$KRB5_ADMSRV_PASSWORD" ]; then
         log-helper info "Generating Kerberos Admin Server Password"
-        KRB5_ADMSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
+        export KRB5_ADMSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
         log-helper info "Generated Kerberos Admin Server Password: $KRB5_ADMSRV_PASSWORD"
     fi
 }
 
-function krb5_get_kdcsrv_password(){
+krb5_get_kdcsrv_password(){
     if [ -z "$KRB5_KDCSRV_PASSWORD" ]; then
         log-helper info "Generating Kerberos KDC Password"
-        KRB5_KDCSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
+        export KRB5_KDCSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
         log-helper info "Generated Kerberos KDC Password: $KRB5_KDCSRV_PASSWORD"
     fi
 }
 
-function krb5_get_master_password(){
+krb5_get_master_password(){
     if [ -z "$KRB5_MASTER_PASSWORD" ]; then
         log-helper info "Generating Kerberos Master Password"
         KRB5_MASTER_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 14)
@@ -161,7 +150,7 @@ function krb5_get_master_password(){
     fi
 }
 
-function krb5_create_realm(){
+krb5_create_realm(){
     log-helper info 'Adding Realm Subtree'
 
     kdb5_ldap_util="kdb5_ldap_util -D cn=admin,$LDAP_BASE_DN -w $LDAP_ADMIN_PASSWORD -H ldapi:///"
@@ -195,12 +184,12 @@ $KRB5_ADMSRV_PASSWORD
 EOF
 }
 
-function krb5_create_admin(){
+krb5_create_admin(){
     log-helper info 'Creating Kerberos Admin user'
     kadmin.local -q "addprinc -pw $KRB5_ADMIN_PASSWORD admin"
 }
 
-function krb5_configure(){
+krb5_configure(){
     log-helper info 'Configuring Kerberos 5'
 
     krb5_get_realm
@@ -215,13 +204,14 @@ function krb5_configure(){
     log-helper info 'Kerberos 5 configuration finished'
 }
 
-function kldap_populate(){
+daas_populate(){
     log-helper info "Populating LDAP backend..."
     slapd_start
 
     slapd_add_schemas
     slapd_apply_ldifs $DIR/ldif.d
 
+    krb5_configure
     krb5_create_realm
     krb5_create_admin
 
@@ -240,8 +230,7 @@ krb5_get_master_password
 set -o pipefail
 
 slapd_configure
-krb5_configure
 
-kldap_populate
+daas_populate
 
 exit 0
