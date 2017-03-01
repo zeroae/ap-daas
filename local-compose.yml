@@ -6,7 +6,7 @@ version: '2'
 # Nodes will use Docker DNS for the service (passed in via the CONSUL
 # env var) to find each other and bootstrap the cluster.
 services:
-  kldap:
+  daas:
     build: .
     restart: always
     mem_limit: 128m
@@ -17,12 +17,14 @@ services:
       - 749
     dns:
       - 127.0.0.1
-    domainname: node.nomr.io
+    domainname: node.zeroae
+    depends_on:
+      - consul
     environment:
       - CONSUL=consul
-      - CONSUL_DOMAIN=nomr.io
-      - KRB5_ADMIN_PASSWORD=admin_key
-      - LDAP_ORGANIZATION=NoMR
+      - CONSUL_DOMAIN=zeroae
+      - KRB5_ADMIN_PASSWORD=admin_password
+      - LDAP_ORGANIZATION=ZeroAE LLC
 
   consul:
     image: zeroae/ap-consul
@@ -32,8 +34,8 @@ services:
       - 8500
     dns:
       - 127.0.0.1
-    domainname: node.nomr.io
+    domainname: node.zeroae
     environment:
       - CONSUL=consul
-      - CONSUL_DOMAIN=nomr.io
+      - CONSUL_DOMAIN=zeroae
       - CONSUL_BOOTSTRAP_EXPECT=1

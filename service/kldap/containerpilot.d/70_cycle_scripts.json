@@ -1,3 +1,0 @@
-{
-  "preStart": "kldap-manage preStart"
-}
