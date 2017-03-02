@@ -4,14 +4,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 log-helper level eq trace && set -x
 
-slapd_get_admin_password() {
-    if [ -z "$LDAP_ADMIN_PASSWORD" ]; then
-        log-helper info "Generating LDAP Admin Password..."
-        export LDAP_ADMIN_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
-        log-helper info "Generated LDAP Admin Password: $LDAP_ADMIN_PASSWORD"
-    fi
-}
-
 slapd_get_base_dn() {
     if [ -z "$LDAP_BASE_DN" ]; then
         IFS='.' read -ra LDAP_BASE_DN_TABLE <<< "$CONSUL_DOMAIN"
@@ -80,8 +72,8 @@ slapd_configure() {
     elif [ -z "$(ls -A -I lost+found /var/lib/ldap)" ] \
         && [ -z "$(ls -A -I lost+found /etc/ldap/slapd.d)" ]; then
         log-helper info "Database and config directory are empty..."
-        log-helper info "Init new ldap server..."
 
+        log-helper info "Init new ldap server..."
         cat <<EOF | debconf-set-selections
 slapd slapd/no_configuration boolean false
 slapd slapd/internal/generated_adminpw password ${LDAP_ADMIN_PASSWORD}
@@ -103,50 +95,30 @@ EOF
     log-helper info 'OpenLDAP configuration finished'
 }
 
-slapd_kerberize(){
-    log-helper info 'Kerberizing OpenLDAP'
+slapd_enable_sasl(){
+    log-helper info 'Enabling SASL'
 
-    kadmin.local -q "addprinc -randkey ldap/$(hostname)"
-    kadmin.local -q "ktadd -k /etc/ldap/sasl2/krb5.keytab ldap/$(hostname)"
-    chown openldap:openldap /etc/ldap/sasl2/krb5.keytab
+    slapd_apply_ldifs $DIR/ldif.d/kerberized
 
     cat <<EOF > /etc/ldap/ldap.conf
 BASE    $LDAP_BASE_DN
 URI     ldapi:///
 SASL_MECH   GSSAPI
 EOF
+}
 
-    slapd_apply_ldifs $DIR/ldif.d/kerberized
+slapd_generate_keytab(){
+    log-helper info 'Generating OpenLDAP Keytab'
+
+    kadmin.local -q "addprinc -randkey ldap/$(hostname)"
+    kadmin.local -q "ktadd -k /etc/ldap/sasl2/krb5.keytab ldap/$(hostname)"
+    chown openldap:openldap /etc/ldap/sasl2/krb5.keytab
 }
 
 
 krb5_get_realm(){
     if [ -z "$KRB5_REALM" ]; then
         export KRB5_REALM=${CONSUL_DOMAIN^^}
-    fi
-}
-
-krb5_get_admsrv_password(){
-    if [ -z "$KRB5_ADMSRV_PASSWORD" ]; then
-        log-helper info "Generating Kerberos Admin Server Password"
-        export KRB5_ADMSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
-        log-helper info "Generated Kerberos Admin Server Password: $KRB5_ADMSRV_PASSWORD"
-    fi
-}
-
-krb5_get_kdcsrv_password(){
-    if [ -z "$KRB5_KDCSRV_PASSWORD" ]; then
-        log-helper info "Generating Kerberos KDC Password"
-        export KRB5_KDCSRV_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)
-        log-helper info "Generated Kerberos KDC Password: $KRB5_KDCSRV_PASSWORD"
-    fi
-}
-
-krb5_get_master_password(){
-    if [ -z "$KRB5_MASTER_PASSWORD" ]; then
-        log-helper info "Generating Kerberos Master Password"
-        KRB5_MASTER_PASSWORD=$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 14)
-        log-helper info "Generated Kerberos Master Password: $KRB5_MASTER_PASSWORD"
     fi
 }
 
@@ -204,8 +176,56 @@ krb5_configure(){
     log-helper info 'Kerberos 5 configuration finished'
 }
 
-daas_populate(){
-    log-helper info "Populating LDAP backend..."
+daas_restore(){
+    log-helper info "Restoring DaaS backend..."
+
+    IN_DIR=$AP_STATE_DIR/daas/manta
+
+    log-helper info 'Moving ldap, krb5 and krb5kdc to /etc'
+    mv $IN_DIR/ldap.conf /etc/ldap/ldap.conf
+    mv $IN_DIR/krb5.conf /etc
+    rm -rf /etc/krb5kdc && mv $IN_DIR/krb5kdc /etc
+
+    # Make backend directories
+    [ -d /etc/ldap/slapd.d ] || mkdir -p /etc/ldap/slapd.d
+    cat $IN_DIR/olcDbDirectory | xargs mkdir -p
+
+    for ldif in $(find $IN_DIR/ldif.d -type f -name '*.ldif.gz' | sort); do
+        log-helper info "Processing file ${ldif}"
+        index=$(basename $ldif)
+        index=${index%.ldif.gz}
+        gunzip -c $ldif | slapadd -F /etc/ldap/slapd.d -n $index
+        rm -f $ldif
+    done
+
+    log-helper info 'Setting ldap directory ownership'
+    chown -R openldap:openldap /etc/ldap
+    cat $IN_DIR/olcDbDirectory | xargs chown -R openldap:openldap
+    rm -f $IN_DIR/olcDbDirectory
+
+    slapd_start
+    slapd_generate_keytab
+    slapd_stop
+
+    log-helper info 'DaaS backend restored.'
+}
+
+daas_get_passwords(){
+    export LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD-$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)}
+    export KRB5_ADMSRV_PASSWORD=${KRB5_ADMSRV_PASSWORD-$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)}
+    export KRB5_KDCSRV_PASSWORD=${KRB5_KDCSRV_PASSWORD-$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 7)}
+    KRB5_MASTER_PASSWORD=${KRB5_MASTER_PASSWORD-$(cat /dev/random | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 14)}
+    log-helper info "Kerberos Master Password: $KRB5_MASTER_PASSWORD"
+}
+
+daas_init(){
+    log-helper info "Initializing DaaS backend..."
+
+    daas_get_passwords
+    set -o pipefail
+
+    slapd_configure
+
     slapd_start
 
     slapd_add_schemas
@@ -215,22 +235,24 @@ daas_populate(){
     krb5_create_realm
     krb5_create_admin
 
-    slapd_kerberize
+    slapd_enable_sasl
+
+    slapd_generate_keytab
+
+    daas-manage push-snapshot
 
     slapd_stop
-    log-helper info "LDAP backend populated."
+
+    log-helper info "DaaS backend initialized."
 }
 
-# Grab passwords before enabled pipefail
-slapd_get_admin_password
-krb5_get_kdcsrv_password
-krb5_get_admsrv_password
-krb5_get_master_password
+#During startup consul-agent is not running -> no local DNS.
+export MANTASH=mantash.local
 
-set -o pipefail
-
-slapd_configure
-
-daas_populate
+if daas-manage pull-snapshot; then
+    daas_restore
+else
+    daas_init
+fi
 
 exit 0
