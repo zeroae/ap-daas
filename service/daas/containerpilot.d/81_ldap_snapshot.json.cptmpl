@@ -1,0 +1,10 @@
+{
+    "tasks": [
+        {
+            "name": "daas-snapshot",
+            "command": ["daas-manage", "push-snapshot"],
+            {{ if .DAAS_SNAPSHOT_TIMEOUT }}"timeout": "{{ .DAAS_SNAPSHOT_TIMEOUT }}",{{ end }}
+            "frequency": "{{ if .DAAS_SNAPSHOT_FREQUENCY }}{{ .DAAS_SNAPSHOT_FREQUENCY }}{{ else }}10h{{ end }}"
+        }
+    ]
+}
