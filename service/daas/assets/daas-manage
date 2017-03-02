@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 set -eo pipefail
 
 # Update the -advertise address based on the interface that ContainerPilot
@@ -20,6 +20,42 @@ health() {
     exit 0
 }
 
+pull_snapshot() {
+    log-helper info "Pulling DaaS snapshot..."
+    MANTASH=${MANTASH:-mantash}
+    IN_DIR=$AP_STATE_DIR/daas/manta
+    mkdir -p $IN_DIR
+
+    $MANTASH get -v -R $MANTA_BUCKET/ $AP_STATE_DIR/daas/manta/
+
+    [ -d $IN_DIR/ldif.d ] && [ -d $IN_DIR/krb5kdc ]
+}
+
+push_snapshot() {
+    log-helper info "Pushing DaaS snapshot..."
+    MANTASH=${MANTASH:-mantash}
+    OUT_DIR=$AP_STATE_DIR/manta/daas
+    rm -rf $OUT_DIR
+    mkdir -p $OUT_DIR
+
+    cp /etc/ldap/ldap.conf $OUT_DIR
+    cp /etc/krb5.conf $OUT_DIR
+    cp -af /etc/krb5kdc $OUT_DIR
+
+    ldapsearch -QY EXTERNAL -b 'cn=config' "(olcDbDirectory=*)" olcDbDirectory \
+        | grep olcDbDirectory: \
+        | sed 's/olcDbDirectory: //' > $OUT_DIR/olcDbDirectory
+
+    mkdir $OUT_DIR/ldif.d
+    num_dbs=$(ldapsearch -QY EXTERNAL -b 'cn=config' "(olcDatabase=*)" dn | grep dn: | wc -l)
+    for ((i=0; i < num_dbs-1; i++)); do
+        slapcat -v -n $i | gzip -9 > $OUT_DIR/ldif.d/$i.ldif.gz
+    done
+
+    $MANTASH put -R $OUT_DIR/* $MANTA_BUCKET
+}
+
+
 _log() {
     echo "daas: $@"
 }
@@ -32,18 +68,20 @@ funcs=($(declare -F -p | cut -d " " -f 3))
 
 until
     if [ ! -z "$1" ]; then
+        func=${1//-/_}
         # check if the first arg is a function in this file, or use a default
-        if [[ " ${funcs[@]} " =~ " $1 " ]]; then
-            cmd=$1
+        if [[ " ${funcs[@]} " =~ " $func " ]]; then
+            cmd=$func
             shift 1
         fi
 
         $cmd "$@"
-        if [ $? == 127 ]; then
+        rv=$?
+        if [ $rv == 127 ]; then
             help
         fi
 
-        exit
+        exit $rv
     else
         health
     fi
