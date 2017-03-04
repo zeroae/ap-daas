@@ -1,10 +1,8 @@
-#!/bin/bash -e
-set -eo pipefail
+#!/bin/bash
 
 # Update the -advertise address based on the interface that ContainerPilot
 # has been told to listen on.
 preStart() {
-    _log "No preStart method implemented"
     exit 0
 }
 
@@ -16,11 +14,41 @@ preStart() {
 # If we end up joining ourselves we just retry on the next health check
 # until we've got the whole cluster together.
 health() {
-    _log "No health method implemented"
     exit 0
 }
 
+run() {
+    trap "echo \"daas-manage cought sighup\"" SIGHUP
+    until [[ `curl -s localhost:8500/v1/agent/self | jq '.Member.Status'` ]]
+    do
+        _log "waiting for consul leader..."
+        sleep 5
+    done
+
+    export SHELL=/bin/bash
+    _log "snapshotd(pid=$$): attempting to obtain lock"
+    exec nohup consul lock -verbose -n=1 -name="DaaS Snapshot" \
+        service/daas/snapshot daas-manage locked-snapshot
+}
+
+locked_snapshot() {
+    _log "snapshotd(pid=$$): lock obtained"
+    export DAAS_SNAPSHOT=1
+
+    containerpilot-render
+    kill -s HUP 1
+
+    while true; do
+        _log "snapshotd(pid=$$): still holds lock."
+        sleep 5
+    done
+
+    unset DAAS_SNAPSHOT
+}
+
 pull_snapshot() {
+    set -eo pipefail
+
     log-helper info "Pulling DaaS snapshot..."
     MANTASH=${MANTASH:-mantash}
     IN_DIR=$AP_STATE_DIR/daas/manta
@@ -32,6 +60,8 @@ pull_snapshot() {
 }
 
 push_snapshot() {
+    set -eo pipefail
+
     log-helper info "Pushing DaaS snapshot..."
     MANTASH=${MANTASH:-mantash}
     OUT_DIR=$AP_STATE_DIR/manta/daas
