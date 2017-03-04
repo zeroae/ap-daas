@@ -12,7 +12,7 @@
     {
       "name": "slapd",
       "command": [
-        "/sbin/slapd.sh",
+        "slapd.sh",
         "-d", "0"
       ],
       "restarts": "unlimited"

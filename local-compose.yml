@@ -20,11 +20,14 @@ services:
     domainname: node.zeroae
     depends_on:
       - consul
+    env_file:
+      - .env
     environment:
       - CONSUL=consul
       - CONSUL_DOMAIN=zeroae
       - KRB5_ADMIN_PASSWORD=admin_password
       - LDAP_ORGANIZATION=ZeroAE LLC
+        #      - DAAS_SNAPSHOT_FREQUENCY=1m
 
   consul:
     image: zeroae/ap-consul

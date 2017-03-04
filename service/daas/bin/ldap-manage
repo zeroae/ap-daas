@@ -4,7 +4,6 @@ set -eo pipefail
 # Update the -advertise address based on the interface that ContainerPilot
 # has been told to listen on.
 preStart() {
-    _log "No preStart method implemented"
     exit 0
 }
 
@@ -16,12 +15,11 @@ preStart() {
 # If we end up joining ourselves we just retry on the next health check
 # until we've got the whole cluster together.
 health() {
-    _log "No health method implemented"
     exit 0
 }
 
 _log() {
-    echo "daas: $@"
+    echo "ldap: $@"
 }
 
 # ---------------------------------------------------

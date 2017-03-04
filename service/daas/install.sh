@@ -3,9 +3,6 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-ln -sf $DIR/assets/*-manage /sbin
-ln -sf $DIR/assets/slapd.sh /sbin
-
 rm -rf /var/lib/ldap /etc/ldap/slapd.d
 
 log-helper info 'Converting Kerberos ldap schema to ldif.'

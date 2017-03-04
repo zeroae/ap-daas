@@ -1,12 +1,12 @@
 # Use zeroae/ap-light
 # https://github.com/zeroae/ap-light
-FROM zeroae/ap-light:0.4.0
+FROM zeroae/ap-light:0.6.0
 MAINTAINER Patrick Sodré sodre@sodre.co
 
 RUN groupadd -r openldap && useradd -r -g openldap openldap
 
 RUN apt-get -y update \
-    && ap-service-add :consul-agent \
+    && ap-service-add :consul-agent :manta \
     && export LC_ALL=C \
     && export DEBIAN_FRONTEND=noninteractive \
     && echo "slapd slapd/no_configuration boolean true" | debconf-set-selections \
@@ -20,7 +20,7 @@ RUN apt-get -y update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ADD service /container/service
+ADD service $AP_SERVICE_DIR
 
 RUN ap-service-install
 
